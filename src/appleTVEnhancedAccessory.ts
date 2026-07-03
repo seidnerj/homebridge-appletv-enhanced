@@ -166,7 +166,7 @@ export class AppleTVEnhancedAccessory {
             this.log.error('Failed to close connection.');
         });
         this.log.info('Removing all event listeners ...');
-        this.device.eventNames().forEach(this.device.removeAllListeners.bind(this.device));
+        this.device.removeAllListeners();
         this.log.success('Removed all event listeners successfully.');
     }
 
@@ -657,7 +657,7 @@ from ${appConfigs[app.id].visibilityState} to ${value}.`);
             this.log.warn('Lost connection. Trying to reconnect ...');
 
             this.log.debug('Removing all event listeners ...');
-            this.device.eventNames().forEach(this.device.removeAllListeners.bind(this.device));
+            this.device.removeAllListeners();
             this.log.debug('Removed all event listeners successfully.');
 
             setTimeout(this.createListeners.bind(this), 5000);
