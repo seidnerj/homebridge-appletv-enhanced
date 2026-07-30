@@ -5,6 +5,12 @@ import PrefixLogger from './PrefixLogger';
 import type LogLevelLogger from './LogLevelLogger';
 import { NodePyATVRepeatState, NodePyATVShuffleState } from '@sebbo2002/node-pyatv';
 
+// pyatv writes a traceback to stderr across several chunks. Wait this long after the last chunk
+// before logging, so the whole thing is reported as one message instead of just its first line.
+const STDERR_FLUSH_DELAY_MS: number = 250;
+// Hard ceiling on that debounce: a stream that keeps writing must not defer reporting forever.
+const STDERR_MAX_BUFFER_MS: number = 2000;
+
 class RocketRemote {
 
     private readonly avadaKedavraSequence: string[];
@@ -16,6 +22,9 @@ class RocketRemote {
     private onHomeCallable?: () => Promise<void> | void = undefined;
     private readonly process: ChildProcessWithoutNullStreams;
 
+    private stderrBuffer: string = '';
+    private stderrBufferedSince: number = 0;
+    private stderrFlushTimeout?: NodeJS.Timeout;
     private readonly stderrListener = this.stderrLog.bind(this);
     private readonly stdoutListener = this.stdoutLog.bind(this);
 
@@ -242,8 +251,26 @@ class RocketRemote {
 
     private cleanUp(): void {
         clearInterval(this.heartbeatInterval);
+        // Report anything still buffered rather than dropping it on the way out - the process is
+        // being torn down anyway, so there is nothing left to kill.
+        this.flushStderr(false);
         this.process.stdout.removeListener('data', this.stdoutListener);
         this.process.stderr.removeListener('data', this.stderrListener);
+    }
+
+    private flushStderr(killProcess: boolean): void {
+        clearTimeout(this.stderrFlushTimeout);
+        this.stderrFlushTimeout = undefined;
+
+        const message: string = this.stderrBuffer.trim();
+        this.stderrBuffer = '';
+        if (message !== '') {
+            this.log.error(message);
+        }
+
+        if (killProcess) {
+            this.process.kill();
+        }
     }
 
     private generateAvadaKedavraSequence(numberOfApps: number): string[] {
@@ -287,14 +314,36 @@ class RocketRemote {
         process.stderr.setEncoding('utf8');
         process.stdout.on('data', this.stdoutListener);
         process.stderr.on('data', this.stderrListener);
+        // If pyatv exits before the debounce elapses, report what it managed to write - otherwise
+        // the diagnostics die with the process. It is already gone, so nothing to kill.
+        process.on('close', (): void => {
+            this.flushStderr(false);
+        });
 
         return process;
     }
 
+
     private stderrLog(data: string): void {
-        this.log.error(data);
-        this.process.kill();
+        // Logging and killing on the first chunk loses everything after "Traceback (most recent
+        // call last):" - which is the only part that says what actually went wrong. Collect the
+        // chunks and flush once pyatv has stopped writing.
+        if (this.stderrBuffer === '') {
+            this.stderrBufferedSince = Date.now();
+        }
+        this.stderrBuffer += data;
+
+        if (Date.now() - this.stderrBufferedSince >= STDERR_MAX_BUFFER_MS) {
+            this.flushStderr(true);
+            return;
+        }
+
+        clearTimeout(this.stderrFlushTimeout);
+        this.stderrFlushTimeout = setTimeout((): void => {
+            this.flushStderr(true);
+        }, STDERR_FLUSH_DELAY_MS);
     }
+
 
     private stdoutLog(data: string): void {
         const toLog: string = data.replace('pyatv>', '').trim();
