@@ -70,6 +70,7 @@ export interface AppleTVEnhancedPlatformConfig extends Pick<PlatformConfig, '_br
         multicast?: boolean;
         unicast?: string[];
     };
+    fixInvalidCharacteristics?: boolean;
     forceVenvRecreate?: boolean;
     logLevel?: LogLevel;
     mediaTypes?: NodePyATVMediaType[];

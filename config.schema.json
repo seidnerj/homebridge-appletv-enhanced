@@ -180,6 +180,13 @@
                     }
                 }
             },
+            "fixInvalidCharacteristics": {
+                "title": "Fix Invalid Characteristic Names And Values",
+                "description": "Apple TVs and their apps sometimes report names or values that HomeKit rejects, which shows up as a HAP-NodeJS warning in the log. Set this to rewrite them into something HomeKit accepts: names are stripped down to letters, numbers, spaces, apostrophes and common punctuation and are made to start and end with a letter or a number, numbers that fall outside of the range of their characteristic are pulled back into it.",
+                "type": "boolean",
+                "default": false,
+                "required": false
+            },
             "forceVenvRecreate": {
                 "title": "Force Venv Recreation",
                 "description": "Set this to force to recreate the virtual python environment with the next restart of the plugin. Remember to set this option to false after the virtual environment has been recreated.",
@@ -713,6 +720,7 @@
             "description": "Settings you usually don't need to touch.",
             "items": [
                 "name",
+                "fixInvalidCharacteristics",
                 "forceVenvRecreate",
                 "logLevel",
                 "pythonExecutable"

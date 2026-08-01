@@ -23,9 +23,11 @@ import path from 'path';
 import CustomPyAtvInstance from './CustomPyAtvInstance';
 import {
     capitalizeFirstLetter,
+    clampToCharacteristicRange,
     delay,
     removeSpecialCharacters,
     getLocalIP,
+    sanitizeHapName,
     snakeCaseToTitleCase,
     trimToMaxLength,
     camelCaseToTitleCase,
@@ -204,7 +206,7 @@ remaining)`);
             return;
         }
         const configuredName: string = event.value !== undefined && event.value !== 'AirPlay'
-            ? trimToMaxLength(removeSpecialCharacters(`AirPlay ${event.value}`), 64)
+            ? this.hapName(`AirPlay ${event.value}`)
             : 'AirPlay';
         this.log.debug(`AirPlay: Set dynamic input name to ${configuredName}.`);
         this.airPlayInputService!.updateCharacteristic(this.platform.characteristic.ConfiguredName, configuredName);
@@ -330,7 +332,7 @@ remaining)`);
                 if (value === '') {
                     return;
                 }
-                value = trimToMaxLength(removeSpecialCharacters(value.toString()), 64);
+                value = this.hapName(value.toString());
                 const oldValue: Nullable<CharacteristicValue> =
                     this.avadaKedavraService!.getCharacteristic(this.platform.characteristic.ConfiguredName).value;
                 if (oldValue === value) {
@@ -362,7 +364,7 @@ remaining)`);
 
     private createCustomPyatvCommandSwitches(commandConfigs: CustomPyATVCommandConfig[]): void {
         for (const commandConfig of commandConfigs) {
-            const name: string = trimToMaxLength(removeSpecialCharacters(commandConfig.name), 64);
+            const name: string = this.hapName(commandConfig.name);
             this.log.debug(`Adding custom PyATV command ${name} as a switch.`);
             const s: Service = this.accessory.getService(name) ||
                 this.addServiceSave(this.platform.service.Switch, name, `custom-pyatv-command-${name.replace(' ', '-')}`)!;
@@ -413,7 +415,7 @@ remaining)`);
                     if (value === '') {
                         return;
                     }
-                    value = trimToMaxLength(removeSpecialCharacters(value.toString()), 64);
+                    value = this.hapName(value.toString());
                     const oldConfiguredName: Nullable<CharacteristicValue> =
                         s.getCharacteristic(this.platform.characteristic.ConfiguredName).value;
                     if (oldConfiguredName === value) {
@@ -462,7 +464,7 @@ ${value}.`);
                 if (value === '') {
                     return;
                 }
-                value = trimToMaxLength(removeSpecialCharacters(value.toString()), 64);
+                value = this.hapName(value.toString());
                 const oldValue: Nullable<CharacteristicValue> =
                     this.homeInputService!.getCharacteristic(this.platform.characteristic.ConfiguredName).value;
                 if (oldValue === value) {
@@ -504,7 +506,7 @@ ${value}.`);
         appsAndCustomInputs.forEach((app: NodePyATVApp) => {
             if (!Object.keys(appConfigs).includes(app.id)) {
                 appConfigs[app.id] = {
-                    configuredName: DEFAULT_APP_RENAME[app.id] || trimToMaxLength(removeSpecialCharacters(app.name), 64),
+                    configuredName: DEFAULT_APP_RENAME[app.id] || this.hapName(app.name),
                     isConfigured: this.platform.characteristic.IsConfigured.CONFIGURED,
                     visibilityState: HIDE_BY_DEFAULT_APPS.includes(app.id)
                         ? this.platform.characteristic.CurrentVisibilityState.HIDDEN
@@ -526,7 +528,7 @@ ${value}.`);
         let addedApps: number = 0;
         appsAndCustomInputs.slice().reverse().every((app: NodePyATVApp) => {
             this.log.debug(`Adding ${app.id} as an input. (named: ${appConfigs[app.id].configuredName})`);
-            const name: string = trimToMaxLength(removeSpecialCharacters(app.name), 64);
+            const name: string = this.hapName(app.name);
             const s: Service | undefined =
                 this.accessory.getService(name) || this.addServiceSave(this.platform.service.InputSource, name, app.id);
 
@@ -563,7 +565,7 @@ It might be a good idea to uninstall unused apps.`);
                     if (value === '') {
                         return;
                     }
-                    value = trimToMaxLength(removeSpecialCharacters(value.toString()), 64);
+                    value = this.hapName(value.toString());
                     if (appConfigs[app.id].configuredName === value) {
                         return;
                     }
@@ -697,7 +699,7 @@ from ${appConfigs[app.id].visibilityState} to ${value}.`);
                     if (value === '') {
                         return;
                     }
-                    value = trimToMaxLength(removeSpecialCharacters(value.toString()), 64);
+                    value = this.hapName(value.toString());
                     const oldConfiguredName: Nullable<CharacteristicValue> =
                         s.getCharacteristic(this.platform.characteristic.ConfiguredName).value;
                     if (oldConfiguredName === value) {
@@ -728,50 +730,52 @@ from ${appConfigs[app.id].visibilityState} to ${value}.`);
 
             this.log.debug(`Adding custom characteristic ${characteristic.displayName}.`);
 
+            let value: Nullable<CharacteristicValue> = null;
             switch (pyatvChar) {
                 case PyATVCustomCharacteristicID.ALBUM:
-                    characteristic.updateValue(await this.device.getAlbum() ?? null);
+                    value = await this.device.getAlbum() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.ARTIST:
-                    characteristic.updateValue(await this.device.getArtist() ?? null);
+                    value = await this.device.getArtist() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.CONTENT_IDENTIFIER:
-                    characteristic.updateValue(await this.device.getContentIdentifier() ?? null);
+                    value = await this.device.getContentIdentifier() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.EPISODE_NUMBER:
-                    characteristic.updateValue(await this.device.getEpisodeNumber() ?? null);
+                    value = await this.device.getEpisodeNumber() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.GENRE:
-                    characteristic.updateValue(await this.device.getGenre() ?? null);
+                    value = await this.device.getGenre() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.ITUNES_STORE_IDENTIFIER:
-                    characteristic.updateValue(await this.device.getITunesStoreIdentifier() ?? null);
+                    value = await this.device.getITunesStoreIdentifier() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.OUTPUT_DEVICES:
-                    characteristic.updateValue(this.outputDevicesToString(await this.device.getOutputDevices()) ?? null);
+                    value = this.outputDevicesToString(await this.device.getOutputDevices()) ?? null;
                     break;
                 case PyATVCustomCharacteristicID.POSITION:
-                    characteristic.updateValue(await this.device.getPosition() ?? null);
+                    value = await this.device.getPosition() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.REPEAT:
-                    characteristic.updateValue(await this.device.getRepeat() ?? null);
+                    value = await this.device.getRepeat() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.SEASON_NUMBER:
-                    characteristic.updateValue(await this.device.getSeasonNumber() ?? null);
+                    value = await this.device.getSeasonNumber() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.SERIES_NAME:
-                    characteristic.updateValue(await this.device.getSeriesName() ?? null);
+                    value = await this.device.getSeriesName() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.SHUFFLE:
-                    characteristic.updateValue(await this.device.getShuffle() ?? null);
+                    value = await this.device.getShuffle() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.TITLE:
-                    characteristic.updateValue(await this.device.getTitle() ?? null);
+                    value = await this.device.getTitle() ?? null;
                     break;
                 case PyATVCustomCharacteristicID.TOTAL_TIME:
-                    characteristic.updateValue(await this.device.getTotalTime() ?? null);
+                    value = await this.device.getTotalTime() ?? null;
                     break;
             }
+            characteristic.updateValue(this.fixCharacteristicValue(characteristic, value));
 
             if (characteristic.value !== '' && characteristic.value !== null) {
                 this.log.info(`Setting characteristic ${characteristic.displayName} to "${characteristic.value}".`);
@@ -824,7 +828,7 @@ from ${appConfigs[app.id].visibilityState} to ${value}.`);
                     if (value === '') {
                         return;
                     }
-                    value = trimToMaxLength(removeSpecialCharacters(value.toString()), 64);
+                    value = this.hapName(value.toString());
                     const oldConfiguredName: Nullable<CharacteristicValue> =
                         s.getCharacteristic(this.platform.characteristic.ConfiguredName).value;
                     if (oldConfiguredName === value) {
@@ -907,7 +911,7 @@ from ${appConfigs[app.id].visibilityState} to ${value}.`);
                 if (value === '') {
                     return;
                 }
-                value = trimToMaxLength(removeSpecialCharacters(value.toString()), 64);
+                value = this.hapName(value.toString());
                 const oldValue: Nullable<CharacteristicValue> =
                     this.volumeFanService!.getCharacteristic(this.platform.characteristic.ConfiguredName).value;
                 if (oldValue === value) {
@@ -1004,6 +1008,18 @@ plugin after you have fixed the root cause. Enable debug logging to see the orig
             }
         }
         return false;
+    }
+
+    private fixCharacteristicValue(characteristic: Characteristic, value: Nullable<CharacteristicValue>): Nullable<CharacteristicValue> {
+        if (this.platform.config.fixInvalidCharacteristics !== true || typeof value !== 'number') {
+            return value;
+        }
+        const clamped: number = clampToCharacteristicRange(value, characteristic.props);
+        if (clamped !== value) {
+            this.log.warn(`The Apple TV reported ${value} for ${characteristic.displayName}, which is outside of the range that \
+HomeKit accepts. Reporting ${clamped} instead.`);
+        }
+        return clamped;
     }
 
     private getAppConfigs(): AppConfigs {
@@ -1359,6 +1375,11 @@ plugin after you have fixed the root cause. Enable debug logging to see the orig
             value = trimToMaxLength(value.toString(), characteristic.props.maxLen ?? 256);
         }
 
+        // pull numbers into the range that HomeKit accepts
+        if (typeof value === 'number') {
+            value = this.fixCharacteristicValue(characteristic, value) as number;
+        }
+
         const unit: string = characteristic.props.unit !== undefined
             ? ` ${characteristic.props.unit}`
             : '';
@@ -1459,6 +1480,11 @@ plugin after you have fixed the root cause. Enable debug logging to see the orig
                 );
             }, 500);
         }
+    }
+
+    private hapName(name: string): string {
+        const trimmed: string = trimToMaxLength(removeSpecialCharacters(name), 64);
+        return this.platform.config.fixInvalidCharacteristics === true ? sanitizeHapName(trimmed) : trimmed;
     }
 
     private mute(): void {
@@ -1697,14 +1723,14 @@ ${characteristic.props.unit}".`);
             : this.platform.api.hap.Categories.APPLE_TV;
 
         const configuredName: string =
-            this.getCommonConfig().configuredName ?? trimToMaxLength(removeSpecialCharacters(this.accessory.displayName), 64);
+            this.getCommonConfig().configuredName ?? this.hapName(this.accessory.displayName);
 
         // set accessory information
         this.accessory.getService(this.platform.service.AccessoryInformation)!
             .setCharacteristic(this.platform.characteristic.Manufacturer, 'Apple Inc.')
             .setCharacteristic(this.platform.characteristic.Model, this.device.modelName!)
             .setCharacteristic(this.platform.characteristic.SerialNumber, this.device.mac!)
-            .setCharacteristic(this.platform.characteristic.Name, removeSpecialCharacters(this.device.name))
+            .setCharacteristic(this.platform.characteristic.Name, this.hapName(this.device.name))
             .setCharacteristic(this.platform.characteristic.FirmwareRevision, this.device.version!);
 
         // create the service

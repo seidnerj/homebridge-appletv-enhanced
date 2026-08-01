@@ -8,6 +8,7 @@ import PythonChecker from './PythonChecker';
 import PrefixLogger from './PrefixLogger';
 import LogLevelLogger from './LogLevelLogger';
 import { hostname } from 'os';
+import { sanitizeHapName } from './utils';
 
 // compatible model identifiers according to https://pyatv.dev/api/const/#pyatv.const.DeviceModel
 const ALLOWED_MODELS: string[] = [
@@ -204,7 +205,7 @@ since development mode is enabled.`);
             this.log.info(`Adding ${appleTV.name} (${appleTV.mac})`);
 
             // create a new accessory
-            const newAccessory: PlatformAccessory = new this.api.platformAccessory(appleTV.name, uuid);
+            const newAccessory: PlatformAccessory = new this.api.platformAccessory(this.hapAccessoryName(appleTV.name), uuid);
 
             // store a copy of the device object in the `accessory.context`
             // the `context` property can be used to store any data about the accessory you may need
@@ -226,6 +227,19 @@ since development mode is enabled.`);
         }
 
         this.log.debug('Finished device discovery.');
+    }
+
+    private hapAccessoryName(name: string): string {
+        if (this.config.fixInvalidCharacteristics !== true) {
+            return name;
+        }
+        const sanitized: string = sanitizeHapName(name);
+        // A name that boils down to a single character cannot be made valid, HAP requires at least a first and a last one.
+        if (sanitized.length < 2 || sanitized === name) {
+            return name;
+        }
+        this.log.info(`Renaming ${name} to ${sanitized} since HomeKit does not accept the original name.`);
+        return sanitized;
     }
 
     private warnNoDevices(): void {

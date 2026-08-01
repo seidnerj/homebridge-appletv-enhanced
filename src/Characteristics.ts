@@ -37,8 +37,12 @@ export function newPyatvCharacteristic(hap: HAP, char: PyATVCustomCharacteristic
             break;
         case PyATVCustomCharacteristicID.EPISODE_NUMBER:
         case PyATVCustomCharacteristicID.SEASON_NUMBER:
-        case PyATVCustomCharacteristicID.ITUNES_STORE_IDENTIFIER:
             props = NUMBER_CHARACTERISTIC_PROPS;
+            break;
+        case PyATVCustomCharacteristicID.ITUNES_STORE_IDENTIFIER:
+            // App Store identifiers passed the 32 bit range in 2024 (ids such as 6776927251 are common now), so a uint32 would
+            // reject them.
+            props = { ...NUMBER_CHARACTERISTIC_PROPS, format: Formats.UINT64 };
             break;
         case PyATVCustomCharacteristicID.POSITION:
         case PyATVCustomCharacteristicID.TOTAL_TIME:
