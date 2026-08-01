@@ -10,6 +10,13 @@ import { NodePyATVRepeatState, NodePyATVShuffleState } from '@sebbo2002/node-pya
 const STDERR_FLUSH_DELAY_MS: number = 250;
 // Hard ceiling on that debounce: a stream that keeps writing must not defer reporting forever.
 const STDERR_MAX_BUFFER_MS: number = 2000;
+// pyatv shields an Apple TV instance the moment its connection ends, so every command sent afterwards raises a BlockedStateError.
+// The heartbeat is what usually hits it: the Apple TV closes the connection when it goes to sleep and nothing says so until the
+// next command goes out. That is the session ending, not a failure, so it does not deserve an error with a Python traceback.
+const CONNECTION_ENDED_PATTERNS: RegExp[] = [
+    /pyatv\.exceptions\.BlockedStateError/,
+    /^Connection lost, stack trace below:/m,
+];
 
 class RocketRemote {
 
@@ -265,7 +272,12 @@ class RocketRemote {
         const message: string = this.stderrBuffer.trim();
         this.stderrBuffer = '';
         if (message !== '') {
-            this.log.error(message);
+            if (CONNECTION_ENDED_PATTERNS.some((pattern: RegExp) => pattern.test(message))) {
+                this.log.info('The connection to the Apple TV has ended, reconnecting.');
+                this.log.debug(message);
+            } else {
+                this.log.error(message);
+            }
         }
 
         if (killProcess) {
