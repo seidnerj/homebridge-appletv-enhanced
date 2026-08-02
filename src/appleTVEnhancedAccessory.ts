@@ -1016,7 +1016,7 @@ plugin after you have fixed the root cause. Enable debug logging to see the orig
         }
         const clamped: number = clampToCharacteristicRange(value, characteristic.props);
         if (clamped !== value) {
-            this.log.info(`Fixed an invalid value of the characteristic ${characteristic.displayName}: HomeKit does not accept \
+            this.log.warn(`Fixed an invalid value of the characteristic ${characteristic.displayName}: HomeKit does not accept \
 ${value}, using ${clamped} instead.`);
         }
         return clamped;
@@ -1489,7 +1489,7 @@ ${value}, using ${clamped} instead.`);
         }
         const sanitized: string = sanitizeHapName(trimmed);
         if (sanitized !== trimmed) {
-            this.log.info(`Fixed an invalid characteristic name: HomeKit does not accept "${trimmed}", using "${sanitized}" \
+            this.log.warn(`Fixed an invalid characteristic name: HomeKit does not accept "${trimmed}", using "${sanitized}" \
 instead.`);
         }
         return sanitized;

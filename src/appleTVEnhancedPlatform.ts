@@ -238,7 +238,7 @@ since development mode is enabled.`);
         if (sanitized.length < 2 || sanitized === name) {
             return name;
         }
-        this.log.info(`Fixed an invalid accessory name: HomeKit does not accept "${name}", using "${sanitized}" instead.`);
+        this.log.warn(`Fixed an invalid accessory name: HomeKit does not accept "${name}", using "${sanitized}" instead.`);
         return sanitized;
     }
 
