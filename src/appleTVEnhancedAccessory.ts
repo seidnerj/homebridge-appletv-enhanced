@@ -1016,8 +1016,8 @@ plugin after you have fixed the root cause. Enable debug logging to see the orig
         }
         const clamped: number = clampToCharacteristicRange(value, characteristic.props);
         if (clamped !== value) {
-            this.log.warn(`The Apple TV reported ${value} for ${characteristic.displayName}, which is outside of the range that \
-HomeKit accepts. Reporting ${clamped} instead.`);
+            this.log.info(`Fixed an invalid value of the characteristic ${characteristic.displayName}: HomeKit does not accept \
+${value}, using ${clamped} instead.`);
         }
         return clamped;
     }
@@ -1484,7 +1484,15 @@ HomeKit accepts. Reporting ${clamped} instead.`);
 
     private hapName(name: string): string {
         const trimmed: string = trimToMaxLength(removeSpecialCharacters(name), 64);
-        return this.platform.config.fixInvalidCharacteristics === true ? sanitizeHapName(trimmed) : trimmed;
+        if (this.platform.config.fixInvalidCharacteristics !== true) {
+            return trimmed;
+        }
+        const sanitized: string = sanitizeHapName(trimmed);
+        if (sanitized !== trimmed) {
+            this.log.info(`Fixed an invalid characteristic name: HomeKit does not accept "${trimmed}", using "${sanitized}" \
+instead.`);
+        }
+        return sanitized;
     }
 
     private mute(): void {
